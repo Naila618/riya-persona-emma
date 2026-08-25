@@ -1,0 +1,202 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id                 String  @id
+  name               String
+  email              String  @unique
+  role               String
+  avatar             String
+  title              String?
+  status             String? @default("OFFLINE")
+  resolvedCount      Int?    @default(0)
+  avgResponseMinutes Float?  @default(0)
+
+  departmentId String?
+  department   Department? @relation("UserDepartment", fields: [departmentId], references: [id])
+
+  managedDepartments Department[] @relation("DepartmentManager")
+
+  assignedEmails EmailItem[]        @relation("AssignedUser")
+  activities     Activity[]         @relation("PerformedBy")
+  replies        Reply[]
+  notes          InternalNote[]
+  notifications  NotificationItem[]
+}
+
+model Department {
+  id                 String @id
+  name               String
+  code               String @unique
+  description        String
+  color              String
+  icon               String
+  slaHours           Int
+  activeTicketsCount Int    @default(0)
+  resolvedTodayCount Int    @default(0)
+
+  managerId String
+  manager   User   @relation("DepartmentManager", fields: [managerId], references: [id])
+
+  employees User[]      @relation("UserDepartment")
+  emails    EmailItem[]
+}
+
+model RoutingRule {
+  id                   String  @id
+  name                 String
+  description          String
+  conditionField       String
+  conditionOperator    String
+  conditionValue       String
+  targetDepartmentId   String
+  targetDepartmentName String
+  targetPriority       String?
+  autoAssignUserId     String?
+  isActive             Boolean @default(true)
+  matchedCount         Int     @default(0)
+}
+
+model EmailItem {
+  id           String    @id
+  messageId    String    @unique
+  sender       String
+  senderName   String
+  senderAvatar String?
+  receiver     String
+  subject      String
+  body         String
+  snippet      String
+  summary      String
+  category     String
+  priority     String
+  urgencyScore Int
+  sentiment    String
+  spamScore    Float
+  language     String
+  status       String
+  isStarred    Boolean   @default(false)
+  receivedAt   DateTime
+  readAt       DateTime?
+  resolvedAt   DateTime?
+  slaDeadline  DateTime?
+  slaBreached  Boolean   @default(false)
+
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id])
+
+  assignedUserId String?
+  assignedUser   User?   @relation("AssignedUser", fields: [assignedUserId], references: [id])
+
+  attachments  Attachment[]
+  replies      Reply[]
+  notes        InternalNote[]
+  activities   Activity[]
+  aiPrediction AIPrediction?
+}
+
+model Attachment {
+  id       String    @id
+  emailId  String
+  fileName String
+  fileType String
+  size     String
+  url      String
+  email    EmailItem @relation(fields: [emailId], references: [id], onDelete: Cascade)
+}
+
+model Reply {
+  id          String    @id
+  emailId     String
+  userId      String
+  userName    String
+  userAvatar  String
+  content     String
+  tone        String
+  aiGenerated Boolean
+  createdAt   DateTime  @default(now())
+  email       EmailItem @relation(fields: [emailId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id])
+}
+
+model InternalNote {
+  id         String    @id
+  emailId    String
+  userId     String
+  userName   String
+  userAvatar String
+  content    String
+  createdAt  DateTime  @default(now())
+  email      EmailItem @relation(fields: [emailId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id])
+}
+
+model Activity {
+  id              String   @id
+  emailId         String
+  action          String
+  performedBy     String
+  performerAvatar String?
+  details         String?
+  timestamp       DateTime @default(now())
+
+  userId String?
+  user   User?     @relation("PerformedBy", fields: [userId], references: [id])
+  email  EmailItem @relation(fields: [emailId], references: [id], onDelete: Cascade)
+}
+
+model AIPrediction {
+  id                       String   @id @default(uuid())
+  emailId                  String   @unique
+  intent                   String
+  confidence               Int
+  summary                  String
+  summaryBullets           String[]
+  suggestedReplies         Json
+  riskScore                Int
+  riskFlags                String[]
+  departmentRecommendation String
+  routingReasoning         String
+  urgencyScore             Int
+  sentiment                String
+  spamScore                Float
+  language                 String
+
+  email    EmailItem         @relation(fields: [emailId], references: [id], onDelete: Cascade)
+  entities ExtractedEntity[]
+  keywords Keyword[]
+}
+
+model ExtractedEntity {
+  id             String       @id @default(uuid())
+  aiPredictionId String
+  label          String
+  value          String
+  type           String
+  aiPrediction   AIPrediction @relation(fields: [aiPredictionId], references: [id], onDelete: Cascade)
+}
+
+model Keyword {
+  id             String       @id @default(uuid())
+  aiPredictionId String
+  word           String
+  aiPrediction   AIPrediction @relation(fields: [aiPredictionId], references: [id], onDelete: Cascade)
+}
+
+model NotificationItem {
+  id          String   @id
+  userId      String
+  title       String
+  description String
+  type        String
+  emailId     String?
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
